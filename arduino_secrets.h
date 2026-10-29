@@ -1,0 +1,9 @@
+#ifndef ARDUINO_SECRETS_H
+#define ARDUINO_SECRETS_H
+
+#define SECRET_SSID "UWNet"
+#define SECRET_OPTIONAL_PASS ""
+#define BOARD_ID "a5a0c1b2-f7fa-4590-ad85-6c7edbc67375"
+#define SECRET_DEVICE_KEY "1oLWLYhR8lq4yQi97@8!4YjvW"
+
+#endif
