@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Milk Spoilage Monitor - Local Dashboard</title>
+  <!-- Load Chart.js for real-time graphs -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: #f1f5f9;
+      color: #1e293b;
+      padding: 20px;
+    }
+
+    /* Top Navigation Bar */
+    .top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #ffffff;
+      padding: 12px 24px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+      border: 1px solid #e2e8f0;
+    }
+    .top-bar h1 { font-size: 18px; font-weight: 600; color: #334155; }
+    .connect-btn {
+      background-color: #0284c7;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .connect-btn:hover { background-color: #0369a1; }
+
+    /* Dashboard Grid Layout */
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 16px;
+    }
+
+    /* Card Containers */
+    .card {
+      background: #ffffff;
+      border-radius: 8px;
+      padding: 18px;
+      border: 1px solid #e2e8f0;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+      display: flex;
+      flex-direction: column;
+    }
+    .card-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: #64748b;
+      margin-bottom: 12px;
+    }
+
+    /* Grid Span Definitions */
+    .col-3 { grid-column: span 3; }
+    .col-5 { grid-column: span 5; }
+    .col-2 { grid-column: span 2; }
+    .col-12 { grid-column: span 12; }
+
+    /* Stat Card Internal Styling */
+    .stat-content {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      flex-grow: 1;
+      padding: 10px 0;
+    }
+    .stat-icon { font-size: 36px; margin-bottom: 6px; }
+    .stat-value { font-size: 28px; font-weight: 700; color: #0f172a; }
+
+    /* Battery Ring Styling */
+    .battery-ring {
+      width: 90px;
+      height: 90px;
+      border-radius: 50%;
+      border: 6px solid #0891b2;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto;
+      transition: border-color 0.3s;
+    }
+    .battery-val { font-size: 22px; font-weight: 800; color: #0f172a; line-height: 1; }
+    .battery-unit { font-size: 12px; font-weight: 600; color: #64748b; }
+
+    /* Device Power Status Card */
+    .power-status-card {
+      background-color: #dc2626;
+      color: white;
+      border-radius: 8px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 20px;
+      position: relative;
+      transition: background-color 0.3s;
+    }
+    .power-status-card .tag {
+      position: absolute;
+      top: 10px;
+      right: 12px;
+      background: rgba(255,255,255,0.2);
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+    }
+    .antenna-icon { font-size: 36px; margin-bottom: 8px; }
+
+    /* Serial Log Output Box */
+    .log-box {
+      background: #f8fafc;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      padding: 10px;
+      font-family: monospace;
+      font-size: 12px;
+      height: 120px;
+      overflow-y: auto;
+    }
+    .log-entry { margin-bottom: 4px; color: #334155; }
+
+    canvas { max-height: 160px; }
+  </style>
+</head>
+<body>
+
+  <!-- Top Navigation Bar -->
+  <div class="top-bar">
+    <h1>Dashboards &gt; Georgia Implementation</h1>
+    <button class="connect-btn" id="connectBtn">Connect Device (Chrome)</button>
+  </div>
+
+  <div class="dashboard-grid">
+
+    <!-- Temperature Graph -->
+    <div class="card col-5">
+      <div class="card-title">Temperature (°C)</div>
+      <canvas id="tempChart"></canvas>
+    </div>
+
+    <!-- Microbial Growth Graph -->
+    <div class="card col-5">
+      <div class="card-title">Microbial Growth (CFU)</div>
+      <canvas id="cfuChart"></canvas>
+    </div>
+
+    <!-- Spoilage Status Milk Jug Card -->
+    <div class="card col-2" style="text-align: center;">
+      <div class="card-title">Spoilage Status</div>
+      <div class="stat-content">
+        <div class="stat-icon">🥛</div>
+        <div class="stat-value" id="spoilageStatus">--</div>
+      </div>
+    </div>
+
+    <!-- Temperature Value Card -->
+    <div class="card col-3">
+      <div class="card-title">Temperature (°C)</div>
+      <div class="stat-content">
+        <div class="stat-icon" style="color: #2563eb;">🌡️</div>
+        <div class="stat-value" id="tempVal">0.00</div>
+      </div>
+    </div>
+
+    <!-- Microbial Growth Value Card -->
+    <div class="card col-3">
+      <div class="card-title">Microbial Growth (CFU)</div>
+      <div class="stat-content">
+        <div class="stat-icon" style="color: #16a34a;">🌱</div>
+        <div class="stat-value" id="cfuVal">100.00</div>
+      </div>
+    </div>
+
+    <!-- Battery Percentage Ring Card -->
+    <div class="card col-3">
+      <div class="card-title">Battery Percentage</div>
+      <div class="stat-content">
+        <div class="battery-ring" id="batRing">
+          <div class="battery-val" id="batVal">--</div>
+          <div class="battery-unit">%</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Dynamic Device Power Status Card -->
+    <div class="card col-3 power-status-card" id="powerCard">
+      <div class="tag">TTI - Georgia</div>
+      <div class="antenna-icon" id="powerIcon">📡</div>
+      <div style="font-weight: 700; font-size: 16px;">Device Power Status</div>
+      <div style="font-size: 13px; opacity: 0.9;" id="connectionState">OFFLINE</div>
+    </div>
+
+    <!-- Serial Log Output Box -->
+    <div class="card col-12">
+      <div class="card-title">Serial Monitor Log</div>
+      <div class="log-box" id="logBox">
+        <div class="log-entry">System ready. Click 'Connect Device' during active BLE wake window.</div>
+      </div>
+    </div>
+
+  </div>
+
+<script>
+  const SERVICE_UUID           = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
+  const TEMP_CHAR_UUID         = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
+  const CFU_CHAR_UUID          = "8ecb3532-0500-4a81-916b-79686417fc93";
+  const BATTERY_CHAR_UUID      = "e32462b0-d980-4221-b31d-b31c9b6348ef";
+  const STATUS_CHAR_UUID       = "a228383c-1e82-4f0f-8b27-4a0f4439c878";
+  const POWER_STATE_CHAR_UUID  = "c110324b-632b-456d-88ec-8f4f387531d0";
+
+  let bluetoothDevice = null;
+  let autoReconnect = false;
+
+  const chartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { grid: { display: false } },
+      y: { grid: { color: '#f1f5f9' } }
+    }
+  };
+
+  const tempChart = new Chart(document.getElementById('tempChart'), {
+    type: 'line',
+    data: { labels: [], datasets: [{ data: [], borderColor: '#0891b2', borderWidth: 2, pointRadius: 2, fill: false }] },
+    options: chartOptions
+  });
+
+  const cfuChart = new Chart(document.getElementById('cfuChart'), {
+    type: 'line',
+    data: { labels: [], datasets: [{ data: [], borderColor: '#0891b2', borderWidth: 2, pointRadius: 2, fill: false }] },
+    options: chartOptions
+  });
+
+  function addLog(msg) {
+    const logBox = document.getElementById('logBox');
+    const time = new Date().toLocaleTimeString();
+    logBox.innerHTML += `<div class="log-entry">[${time}] ${msg}</div>`;
+    logBox.scrollTop = logBox.scrollHeight;
+  }
+
+  function setPowerWidgetState(state) {
+    const powerCard = document.getElementById('powerCard');
+    const connState = document.getElementById('connectionState');
+    const powerIcon = document.getElementById('powerIcon');
+
+    if (state === "ONLINE") {
+      powerCard.style.backgroundColor = "#16a34a"; // Green
+      connState.innerText = "ONLINE (MEASURING)";
+      powerIcon.innerText = "📡";
+    } else if (state === "SLEEP") {
+      powerCard.style.backgroundColor = "#f59e0b"; // Amber/Orange
+      connState.innerText = "SLEEP MODE (WAITING FOR WAKE)";
+      powerIcon.innerText = "🌙";
+    } else {
+      powerCard.style.backgroundColor = "#dc2626"; // Red
+      connState.innerText = "OFFLINE";
+      powerIcon.innerText = "❌";
+    }
+  }
+
+  async function fetchSensorData() {
+    try {
+      if (!bluetoothDevice || !bluetoothDevice.gatt.connected) {
+        addLog("Connecting to GATT server...");
+        await bluetoothDevice.gatt.connect();
+      }
+
+      const server = bluetoothDevice.gatt;
+      const service = await server.getPrimaryService(SERVICE_UUID);
+
+      setPowerWidgetState("ONLINE");
+
+      // Read Temperature
+      const tempChar = await service.getCharacteristic(TEMP_CHAR_UUID);
+      const tempVal = parseFloat(new TextDecoder().decode(await tempChar.readValue())).toFixed(2);
+      document.getElementById('tempVal').innerText = tempVal;
+
+      // Read CFU
+      const cfuChar = await service.getCharacteristic(CFU_CHAR_UUID);
+      const cfuVal = parseFloat(new TextDecoder().decode(await cfuChar.readValue())).toFixed(2);
+      document.getElementById('cfuVal').innerText = cfuVal;
+
+      // Read Battery
+      const batChar = await service.getCharacteristic(BATTERY_CHAR_UUID);
+      const batVal = parseInt(new TextDecoder().decode(await batChar.readValue()));
+      document.getElementById('batVal').innerText = batVal;
+
+      const batRing = document.getElementById('batRing');
+      if (batVal <= 20) batRing.style.borderColor = "#ef4444";
+      else if (batVal <= 50) batRing.style.borderColor = "#f59e0b";
+      else batRing.style.borderColor = "#0891b2";
+
+      // Read Status
+      const statusChar = await service.getCharacteristic(STATUS_CHAR_UUID);
+      const statusVal = new TextDecoder().decode(await statusChar.readValue());
+      
+      const statusElem = document.getElementById('spoilageStatus');
+      statusElem.innerText = statusVal;
+      statusElem.style.color = (statusVal === "OK") ? "#16a34a" : (statusVal === "WARNING") ? "#eab308" : "#dc2626";
+
+      // Plot data point to charts
+      const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      tempChart.data.labels.push(now);
+      tempChart.data.datasets[0].data.push(tempVal);
+      tempChart.update();
+
+      cfuChart.data.labels.push(now);
+      cfuChart.data.datasets[0].data.push(cfuVal);
+      cfuChart.update();
+
+      addLog(`Measurement Logged: Temp=${tempVal}°C | Pop=${cfuVal} CFU/g | Bat=${batVal}%`);
+
+    } catch (err) {
+      addLog(`Waiting for ESP32 wake cycle... (${err.message})`);
+    }
+  }
+
+  document.getElementById('connectBtn').addEventListener('click', async () => {
+    try {
+      addLog("Select 'Milk-Monitor-BLE' from pairing window...");
+      bluetoothDevice = await navigator.bluetooth.requestDevice({
+        filters: [{ name: 'Milk-Monitor-BLE' }],
+        optionalServices: [SERVICE_UUID]
+      });
+
+      autoReconnect = true;
+
+      // Event triggered when ESP32 shuts down BLE for deep sleep
+      bluetoothDevice.addEventListener('gattserverdisconnected', () => {
+        setPowerWidgetState("SLEEP");
+        addLog("ESP32 in Deep Sleep. Auto-reconnect polling active...");
+        
+        if (autoReconnect) {
+          setTimeout(tryReconnectLoop, 3000);
+        }
+      });
+
+      await fetchSensorData();
+
+    } catch (error) {
+      addLog(`Bluetooth Connection Error: ${error}`);
+      setPowerWidgetState("OFFLINE");
+    }
+  });
+
+  async function tryReconnectLoop() {
+    if (!autoReconnect || (bluetoothDevice && bluetoothDevice.gatt.connected)) return;
+    
+    try {
+      addLog("Polling for ESP32 wake broadcast...");
+      await bluetoothDevice.gatt.connect();
+      addLog("Reconnected! Fetching new reading...");
+      await fetchSensorData();
+    } catch (e) {
+      // Re-try every 3 seconds until ESP32 wakes up
+      setTimeout(tryReconnectLoop, 3000);
+    }
+  }
+</script>
+</body>
+</html>
